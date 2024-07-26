@@ -78,7 +78,7 @@ update_time = ""
 # i dont this this dict is really necessary
 currency2price = Dict(str, ExchangeRate)
 
-def fetch_exchange(app_key: str) -> None:
+async def fetch_exchange(app_key: str) -> None:
     # fixme
     # i will use hkd for example
     # need to generalize it.
