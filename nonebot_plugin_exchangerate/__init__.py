@@ -46,7 +46,7 @@ async def _(event: MessageEvent, suffix: str = Endswith()) -> None:
     misfire_grace_time=30,
 )
 async def _(app_key: str) -> None:
-    fetch_exchange(app_key)
+    await fetch_exchange(app_key)
 
 
 #statement = on_fullmatch(("货币列表", "汇率列表"))
