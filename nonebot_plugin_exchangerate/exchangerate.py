@@ -8,114 +8,126 @@ from pydantic import BaseModel
 
 from .config import config
 
+from bocfx import bocfx
+
 require("nonebot_plugin_apscheduler")
 
 from nonebot_plugin_apscheduler import scheduler
 
-currency_dict: Dict[str, Tuple[str, ...]] = {
-    "澳大利亚元": ("澳元",),
-    "加拿大元": ("加元", "加币"),
-    "瑞士法郎": ("法郎",),
-    "丹麦克朗": (),
-    "欧元": (),
-    "英镑": (),
-    "港币": ("港元", "香港元"),
-    "印尼卢比": (),
-    "日元": ("円", "日圆"),
-    "韩元": ("韩币",),
-    "澳门元": ("澳币", "澳门币"),
-    "挪威克朗": (),
-    "新西兰元": (),
-    "菲律宾比索": ("比索",),
-    "卢布": ("俄元",),
-    "瑞典克朗": (),
-    "新加坡元": (),
-    "泰国铢": ("泰铢",),
-    "土耳其里拉": (),
-    "美元": ("美刀",),
-    "南非兰特": (),
-}
+#currency_dict: Dict[str, Tuple[str, ...]] = {
+#    "澳大利亚元": ("澳元",),
+#    "加拿大元": ("加元", "加币"),
+#    "瑞士法郎": ("法郎",),
+#    "丹麦克朗": (),
+#    "欧元": (),
+#    "英镑": (),
+#    "港币": ("港元", "香港元"),
+#    "印尼卢比": (),
+#    "日元": ("円", "日圆"),
+#    "韩元": ("韩币",),
+#    "澳门元": ("澳币", "澳门币"),
+#    "挪威克朗": (),
+#    "新西兰元": (),
+#    "菲律宾比索": ("比索",),
+#    "卢布": ("俄元",),
+#    "瑞典克朗": (),
+#    "新加坡元": (),
+#    "泰国铢": ("泰铢",),
+#    "土耳其里拉": (),
+#    "美元": ("美刀",),
+#    "南非兰特": (),
+#}
 
-
+#this class is for storing the data got by bocfx.
 class ExchangeRate(BaseModel):
-    name: str
     """货币名称"""
-    unit: int
-    """交易单位"""
-    spot_exchange: float
-    """现汇买入价"""
-    cash_purchase: float
-    """现钞买入价"""
-    cash_sellout: float
-    """现钞卖出价"""
-    conversion: float
-    """中行折算价"""
+    name: str
+    """spot exchange bid"""
+    se_bid: float
+    """bid for bonds"""
+    bn_bid: float
+    """spot exchange ask"""
+    se_ask: float
+    """ask for bonds"""
+    bn_ask: float
+    """bank of china conversion rate"""
+    boc_conv: float
+    """time that bank of china released this price"""
+    time: datetime
 
-    def exchange(self, amount: float) -> float:
-        """CNY兑换外币"""
-        sums = self.cash_sellout / self.unit * amount
-        if config.exchange_decimals:
-            return round(sums, config.exchange_decimals)
-        return round(sums)
+    def __str__(self) -> str:
+        return (
+            f"货币名称: {self.name}\n"
+            f"现汇买入价 (SE_BID): {self.se_bid}\n"
+            f"债券买入价 (BN_BID): {self.bn_bid}\n"
+            f"现汇卖出价 (SE_ASK): {self.se_ask}\n"
+            f"债券卖出价 (BN_ASK): {self.bn_ask}\n"
+            f"中国银行转换率 (BOC_CONV): {self.boc_conv}\n"
+            f"发布时间: {self.time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        )
+    
+    def name(self) -> str:
+        return self.name
+    
+    def time(self) -> datetime:
+        return self.time
+    
 
-
-fields = ExchangeRate.__fields__.keys()
-
-exchange_dict: Dict[str, ExchangeRate] = {}
+#fields = ExchangeRate.model_fields.keys()
+#exchange_dict: Dict[str, ExchangeRate] = {}
 
 update_time = ""
+# i dont this this dict is really necessary
+currency2price = Dict(str, ExchangeRate)
 
-
+#fixme: it should be moved to the __init__.py
 @scheduler.scheduled_job(
     "interval",
-    minutes=30,
+    minutes=5,
     args=[config.exchange_app_key],
     next_run_time=datetime.now(),
     misfire_grace_time=30,
 )
 async def fetch_exchange(app_key: str) -> None:
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"http://op.juhe.cn/onebox/exchange/query?key={app_key}"
-        )
-    result = response.json()["result"]
-    currency_list = result["list"]
-    global exchange_list
-    exchange_dict.clear()
-    for currency in currency_list:
-        params = dict(zip(fields, currency))
-        exchange_dict[currency[0]] = ExchangeRate(**params)
+    # fixme
+    # i will use hkd for example
+    # need to generalize it.
+    # app_key should be modified and used
+    hkd = bocfx(FX='HKD')
+    # hkd_price example: ('HKD', '92.77', '92.02', '93.12', '93.12', '91.3', '2024-07-27 00:09:02')
+    # hkd[1] equals to the up-to-date price
+    hkd_price = hkd[1]
+    # now hkd_price become a class
+    hkd_price = ExchangeRate(**hkd_price)
+
+    #store hkd(or something else) to currency2price str to class ExchangeRate
+    #fixme: I dont think this logic is good enough
+    global currency2price
+    currency_name = hkd_price.name()
+    currency2price[currency_name] = hkd_price
+
+    #update the time
+    #fixme: is this update time really necessary?
     global update_time
-    update_time = result["update"]
+    update_time = hkd_price.time()
+
     logger.debug(f"汇率更新成功! 更新时间: {update_time}")
 
-
-def get_exchangerate(name: str) -> ExchangeRate:
+def get_exchange_rate(currency_name: str) -> ExchangeRate:
     try:
-        return exchange_dict[name]
+        return currency2price[currency_name]
     except KeyError:
-        for k, v in currency_dict.items():
-            if name in v:
-                return exchange_dict[k]
-    raise ValueError("查找的货币不存在")
+#        for k, v in currency2price.items():
+#            if currency_name in v:
+#                return exchange_dict[k]
+        raise ValueError("we did not get what you want, wrong currency or excluded from the database")
 
+#implement: def exchange():
 
-def exchange_currency(name: str, amount: float) -> float:
-    er = get_exchangerate(name)
-    return er.exchange(amount)
+def get_currency_info(currency_name: str) -> str:
+    er = get_exchange_rate(currency_name)
+    return str(er)
 
-
-def get_currency_info(name: str) -> str:
-    er = get_exchangerate(name)
-    return (
-        f"货币名称: {er.name}\n"
-        f"现汇买入价: {er.spot_exchange}\n"
-        f"现钞买入价: {er.cash_purchase}\n"
-        f"现钞卖出价: {er.cash_sellout}\n"
-        f"中行折算价: {er.conversion}\n"
-        f"更新时间: {update_time}"
-    )
-
-
-def get_currency_list() -> List[str]:
-    return list(exchange_dict.keys())
+#implement:
+#def get_currency_list() -> List[str]:
+#    return list(exchange_dict.keys())

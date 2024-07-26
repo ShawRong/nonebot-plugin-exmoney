@@ -1,10 +1,11 @@
-from nonebot import get_driver
-from pydantic import BaseModel, Extra, Field
+#from nonebot import get_driver
+from pydantic import BaseModel
 
 
-class Config(BaseModel, extra=Extra.ignore):
-    exchange_app_key: str
-    exchange_decimals: int = Field(2, ge=0)
+class Config(BaseModel):
+#    exchange_app_key: str
+#    exchange_decimals: int = Field(2, ge=0)
+    pass
 
 
-config = Config.parse_obj(get_driver().config)
+#config = Config.parse_obj(get_driver().config)
