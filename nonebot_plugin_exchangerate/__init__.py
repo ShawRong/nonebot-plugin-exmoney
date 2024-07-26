@@ -6,7 +6,8 @@ from nonebot.adapters.onebot.v11 import MessageEvent
 from nonebot.params import Endswith, RegexDict
 from nonebot_plugin_saa import AggregatedMessageFactory, Text
 
-from .exchangerate import get_currency_info
+from .exchangerate import get_currency_info, fetch_exchange
+from nonebot_plugin_apscheduler import scheduler
 
 #exchange = on_regex(r"(?P<amount>^\d+\.?\d*)(?P<currency>[\u4e00-\u9fff]{1,5}$)")
 #@exchange.handle()
@@ -36,6 +37,16 @@ async def _(event: MessageEvent, suffix: str = Endswith()) -> None:
     except ValueError as e:
         msg: str = str(e)
     await info.send(msg)
+
+@scheduler.scheduled_job(
+    "interval",
+    minutes=5,
+    args=[config.exchange_app_key],
+    next_run_time=datetime.now(),
+    misfire_grace_time=30,
+)
+async def _(app_key: str) -> None:
+    fetch_exchange(app_key)
 
 
 #statement = on_fullmatch(("货币列表", "汇率列表"))

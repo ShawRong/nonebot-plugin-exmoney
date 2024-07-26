@@ -12,8 +12,6 @@ from bocfx import bocfx
 
 require("nonebot_plugin_apscheduler")
 
-from nonebot_plugin_apscheduler import scheduler
-
 #currency_dict: Dict[str, Tuple[str, ...]] = {
 #    "澳大利亚元": ("澳元",),
 #    "加拿大元": ("加元", "加币"),
@@ -40,7 +38,7 @@ from nonebot_plugin_apscheduler import scheduler
 
 #this class is for storing the data got by bocfx.
 class ExchangeRate(BaseModel):
-    """货币名称"""
+    """name for currency"""
     name: str
     """spot exchange bid"""
     se_bid: float
@@ -80,15 +78,7 @@ update_time = ""
 # i dont this this dict is really necessary
 currency2price = Dict(str, ExchangeRate)
 
-#fixme: it should be moved to the __init__.py
-@scheduler.scheduled_job(
-    "interval",
-    minutes=5,
-    args=[config.exchange_app_key],
-    next_run_time=datetime.now(),
-    misfire_grace_time=30,
-)
-async def fetch_exchange(app_key: str) -> None:
+def fetch_exchange(app_key: str) -> None:
     # fixme
     # i will use hkd for example
     # need to generalize it.
@@ -112,6 +102,7 @@ async def fetch_exchange(app_key: str) -> None:
     update_time = hkd_price.time()
 
     logger.debug(f"汇率更新成功! 更新时间: {update_time}")
+    
 
 def get_exchange_rate(currency_name: str) -> ExchangeRate:
     try:
