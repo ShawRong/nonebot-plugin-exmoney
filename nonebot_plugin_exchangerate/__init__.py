@@ -1,13 +1,17 @@
-import contextlib
-from typing import Any, Dict
+from datetime import datetime
 
-from nonebot import on_command, on_endswith, on_fullmatch, on_regex
+from .config import config
+from nonebot import on_command, on_endswith
 from nonebot.adapters.onebot.v11 import MessageEvent
-from nonebot.params import Endswith, RegexDict
+from nonebot.params import Endswith
 from nonebot_plugin_saa import AggregatedMessageFactory, Text
+from nonebot.log import logger
+
+from nonebot import require
+require("nonebot_plugin_apscheduler")
+from nonebot_plugin_apscheduler import scheduler
 
 from .exchangerate import get_currency_info, fetch_exchange
-from nonebot_plugin_apscheduler import scheduler
 
 #exchange = on_regex(r"(?P<amount>^\d+\.?\d*)(?P<currency>[\u4e00-\u9fff]{1,5}$)")
 #@exchange.handle()
@@ -46,8 +50,27 @@ async def _(event: MessageEvent, suffix: str = Endswith()) -> None:
     misfire_grace_time=30,
 )
 async def _(app_key: str) -> None:
-    await fetch_exchange(app_key)
+    try:
+        #fixme generalize app_key
+        app_key = "HKD"
+        msg = get_currency_info(app_key)
+    except ValueError as e:
+        msg: str = str(e)
+    output = AggregatedMessageFactory(
+        [Text(msg)]
+    )
+    await output.finish()
 
+@scheduler.scheduled_job(
+    "interval",
+    minutes=5,
+    args=[config.exchange_app_key],
+    next_run_time=datetime.now(),
+    misfire_grace_time=30,
+)
+async def _(app_key: str) -> None:
+    update_time =  await fetch_exchange(app_key)
+    logger.debug(f"exchange rate updated! the latest price release time: {update_time}")
 
 #statement = on_fullmatch(("货币列表", "汇率列表"))
 #@statement.handle()

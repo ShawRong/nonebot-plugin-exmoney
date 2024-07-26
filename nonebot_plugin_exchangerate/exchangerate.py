@@ -1,16 +1,11 @@
 from datetime import datetime
 from typing import Dict, List, Tuple
 
-import httpx
-from nonebot import require
-from nonebot.log import logger
 from pydantic import BaseModel
 
-from .config import config
 
 from bocfx import bocfx
 
-require("nonebot_plugin_apscheduler")
 
 #currency_dict: Dict[str, Tuple[str, ...]] = {
 #    "澳大利亚元": ("澳元",),
@@ -74,11 +69,10 @@ class ExchangeRate(BaseModel):
 #fields = ExchangeRate.model_fields.keys()
 #exchange_dict: Dict[str, ExchangeRate] = {}
 
-update_time = ""
 # i dont this this dict is really necessary
 currency2price = Dict(str, ExchangeRate)
 
-async def fetch_exchange(app_key: str) -> None:
+async def fetch_exchange(app_key: str) -> datetime:
     # fixme
     # i will use hkd for example
     # need to generalize it.
@@ -96,14 +90,9 @@ async def fetch_exchange(app_key: str) -> None:
     currency_name = hkd_price.name()
     currency2price[currency_name] = hkd_price
 
-    #update the time
-    #fixme: is this update time really necessary?
-    global update_time
     update_time = hkd_price.time()
-
-    logger.debug(f"汇率更新成功! 更新时间: {update_time}")
+    return update_time
     
-
 def get_exchange_rate(currency_name: str) -> ExchangeRate:
     try:
         return currency2price[currency_name]
